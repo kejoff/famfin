@@ -50,3 +50,4 @@ venv/
 _bmad/
 _bmad-output/
 .bmad-*/
+.claude/
