@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>famfin</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300&family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+      *, *::before, *::after {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      :root {
+        --font:  'DM Sans', system-ui, sans-serif;
+        --serif: 'DM Serif Display', Georgia, serif;
+        --mono:  'DM Mono', monospace;
+
+        /* Signal colors */
+        --em:    #00D97E;
+        --em-dk: #00A85F;
+        --em-bg: #001F12;
+        --amb:   #FF8500;
+        --amb-dk:#CC5A00;
+        --amb-bg:#2D1200;
+        --cri:   #FF3358;
+        --cri-bg:#1F0008;
+
+        /* Surfaces */
+        --bg:      #0B0B12;
+        --surface: #13131C;
+        --card:    #1C1C28;
+        --card-hov:#222232;
+        --ink:     #09090F;
+        --cream:   #F5EFE4;
+        --text:    #F2F2F7;
+        --text-mid: rgba(242,242,247,0.65);
+        --text-dim: rgba(242,242,247,0.38);
+        --border:  rgba(255,255,255,0.08);
+        --border-hi: rgba(255,255,255,0.13);
+      }
+
+      body {
+        font-family: var(--font);
+        background: var(--bg);
+        color: var(--text);
+        min-height: 100vh;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+
+      #app {
+        width: 100%;
+        min-height: 100vh;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

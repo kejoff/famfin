@@ -1,0 +1,41 @@
+[package]
+name = "famfin-backend"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+axum = "0.8"
+tokio = { version = "1", features = ["full"] }
+tower = "0.4"
+tower-http = { version = "0.5", features = ["trace", "cors", "fs", "limit"] }
+rusqlite = { version = "0.30", features = ["bundled-sqlcipher"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+ort = { version = "2.0.0-rc.12", features = ["fetch-models"] }
+tracing = "0.1"
+tracing-subscriber = "0.3"
+anyhow = "1"
+dotenv = "0.15"
+refinery = { version = "0.8", features = ["rusqlite"] }
+lazy_static = "1.4"
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+argon2 = "0.5"
+cookie = "0.18"
+axum-extra = { version = "0.9", features = ["cookie", "typed-header"] }
+rand = "0.8"
+async-trait = "0.1"
+csv = "1.3"
+sha2 = "0.10"
+hmac = "0.12"
+base64 = "0.22"
+governor = "0.7"
+regex = "1"
+
+[dev-dependencies]
+tokio-test = "0.4"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1

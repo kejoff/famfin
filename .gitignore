@@ -1,0 +1,52 @@
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Build artifacts
+/target
+/build
+/dist
+*.o
+*.a
+*.so
+
+# Dependencies
+node_modules/
+Cargo.lock
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Database
+**/*.db
+**/*.db-wal
+**/*.db-shm
+
+# ML models
+*.onnx
+models/
+
+# SvelteKit
+.svelte-kit/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.dual-graph/
+
+# BMAD artifacts
+_bmad/
+_bmad-output/
+.bmad-*/

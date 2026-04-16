@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>famfin — Toile Déclarative v4</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300&family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<!-- SVG DEFS: brushstroke filters + grain -->
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <!-- Grain canvas -->
+    <filter id="grain" x="0%" y="0%" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch" result="noise"/>
+      <feColorMatrix type="saturate" values="0" in="noise" result="grayNoise"/>
+      <feBlend in="SourceGraphic" in2="grayNoise" mode="multiply" result="blended"/>
+      <feComposite in="blended" in2="SourceGraphic" operator="in"/>
+    </filter>
+    <!-- Paint roughen -->
+    <filter id="roughen">
+      <feTurbulence type="turbulence" baseFrequency="0.02" numOctaves="2" result="noise"/>
+      <feDisplacementMap in="SourceGraphic" in2="noise" scale="4" xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+    <!-- Glow for neon -->
+    <filter id="neon-glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+</svg>
+
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --font:  'DM Sans', system-ui, sans-serif;
+  --serif: 'DM Serif Display', Georgia, serif;
+  --mono:  'DM Mono', monospace;
+  --em:  #00D97E; --em-dk: #00A85F; --em-bg: #002D1A;
+  --amb: #FF8500; --amb-dk: #CC5A00; --amb-bg: #2D1200;
+  --cri: #FF3358; --cri-bg: #2D0010;
+  --ink: #09090F;
+  --cream: #F5EFE4;
+}
+body {
+  font-family: var(--font);
+  background: #0B0B12;
+  color: #F2F2F7;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ─── NAV ─── */
+.nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 200;
+  background: rgba(9,9,15,0.97); backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  padding: 0 20px; display: flex; align-items: center; gap: 4px; height: 50px;
+}
+.nav-logo { font-family: var(--serif); font-style: italic; font-size: 17px; color: #F2F2F7; margin-right: 14px; }
+.nav-btn {
+  padding: 5px 13px; border-radius: 20px; border: none; cursor: pointer;
+  font-family: var(--font); font-size: 12px; font-weight: 500;
+  background: transparent; color: rgba(242,242,247,0.35); transition: all 0.2s;
+}
+.nav-btn:hover  { background: rgba(255,255,255,0.07); color: #F2F2F7; }
+.nav-btn.active { background: rgba(255,255,255,0.12); color: #F2F2F7; }
+.section { display: none; padding-top: 50px; }
+.section.active { display: block; }
+
+/* ─── INTRO ─── */
+.intro {
+  text-align: center; padding: 52px 24px 40px;
+  max-width: 560px; margin: 0 auto;
+}
+.badge {
+  display: inline-block; padding: 3px 11px; border-radius: 4px;
+  background: rgba(0,217,126,0.1); border: 1px solid rgba(0,217,126,0.25);
+  font-size: 9px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase;
+  color: var(--em); margin-bottom: 14px;
+}
+.intro h1 { font-family: var(--serif); font-style: italic; font-size: clamp(24px, 4vw, 36px); color: #F2F2F7; line-height: 1.2; margin-bottom: 10px; }
+.intro p  { font-size: 13px; color: rgba(242,242,247,0.4); line-height: 1.75; }
+
+/* ─── PHONE SHELL ─── */
+.grid { display: flex; gap: 36px; padding: 0 24px 80px; justify-content: center; flex-wrap: wrap; align-items: flex-start; }
+.col  { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.col-label { font-size: 9px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: rgba(242,242,247,0.25); }
+
+.phone {
+  width: 310px; height: 670px; border-radius: 44px; overflow: hidden; position: relative;
+  box-shadow: 0 50px 100px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.07);
+  flex-shrink: 0;
+}
+
+/* ─── PAINTED CANVAS ─── */
+.canvas {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+}
+.paint-layer {
+  position: absolute; inset: 0; z-index: 1;
+}
+/* Canvas grain overlay */
+.paint-layer::after {
+  content: '';
+  position: absolute; inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.07'/%3E%3C/svg%3E");
+  mix-blend-mode: overlay; pointer-events: none; z-index: 50;
+}
+
+/* SEREIN */
+.s-serein .paint-layer { background: #001F12; }
+.s-serein .paint-layer svg.brushwork path { opacity: 1; }
+
+/* TENSION */
+.s-tension .paint-layer { background: #1F0800; }
+
+/* ALERTE */
+.s-alerte .paint-layer { background: #1F0008; }
+
+/* NEON */
+.s-neon .paint-layer { background: #000005; }
+
+/* ─── STATUS BAR ─── */
+.status-bar {
+  position: absolute; top: 0; left: 0; right: 0; height: 44px;
+  display: flex; align-items: flex-end; justify-content: space-between;
+  padding: 0 22px 7px; z-index: 30; font-size: 11px; font-weight: 600;
+  color: rgba(255,255,255,0.55);
+}
+
+/* ─── HERO ZONE ─── */
+.hero-zone {
+  position: absolute; top: 44px; left: 0; right: 0;
+  padding: 22px 26px 0; z-index: 20;
+}
+.eyebrow {
+  font-size: 9px; font-weight: 700; letter-spacing: 2.5px; text-transform: uppercase;
+  color: rgba(255,255,255,0.45); margin-bottom: 2px;
+}
+.hero-num {
+  font-family: var(--serif); font-style: italic;
+  font-size: 100px; line-height: 0.88; letter-spacing: -4px;
+  color: #fff;
+  text-shadow: 0 2px 60px rgba(0,0,0,0.2);
+}
+.hero-num sup { font-size: 38px; vertical-align: super; letter-spacing: 0; }
+.hero-unit { font-family: var(--serif); font-style: italic; font-size: 32px; color: rgba(255,255,255,0.4); margin-left: 3px; }
+.hero-caption { font-size: 11px; color: rgba(255,255,255,0.38); margin-top: 7px; letter-spacing: 0.2px; }
+
+/* ─── SIGNAL ─── */
+.signal {
+  position: absolute; top: 52px; right: 22px; z-index: 30;
+  display: flex; align-items: center; gap: 6px;
+  padding: 5px 11px; border-radius: 20px; backdrop-filter: blur(10px);
+}
+.s-serein .signal { background: rgba(0,217,126,0.15); border: 1px solid rgba(0,217,126,0.35); }
+.s-tension .signal { background: rgba(255,133,0,0.15); border: 1px solid rgba(255,133,0,0.35); }
+.s-alerte  .signal { background: rgba(255,51,88,0.15);  border: 1px solid rgba(255,51,88,0.35); }
+.s-neon    .signal { background: rgba(0,217,126,0.1);   border: 1px solid rgba(0,217,126,0.5); box-shadow: 0 0 12px rgba(0,217,126,0.2); }
+.sig-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.s-serein .sig-dot  { background: var(--em);  box-shadow: 0 0 8px var(--em); }
+.s-tension .sig-dot { background: var(--amb); box-shadow: 0 0 8px var(--amb); }
+.s-alerte  .sig-dot { background: var(--cri); box-shadow: 0 0 8px var(--cri); }
+.s-neon    .sig-dot { background: var(--em);  box-shadow: 0 0 12px var(--em), 0 0 24px rgba(0,217,126,0.4); }
+.sig-text { font-size: 10px; font-weight: 600; color: rgba(255,255,255,0.75); }
+
+/* ─── ANNOTATION CARDS ─── */
+.ann {
+  position: absolute; z-index: 25;
+  background: rgba(5,5,10,0.72); backdrop-filter: blur(14px);
+  border: 1px solid rgba(255,255,255,0.1); border-radius: 10px;
+  padding: 8px 12px;
+}
+.ann-lbl { font-size: 8px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(255,255,255,0.35); margin-bottom: 2px; }
+.ann-val { font-family: var(--mono); font-size: 15px; font-weight: 500; color: #fff; font-variant-numeric: tabular-nums; }
+.ann-sub { font-size: 9px; color: rgba(255,255,255,0.3); margin-top: 1px; }
+.ann.em  .ann-val { color: var(--em); }
+.ann.amb .ann-val { color: var(--amb); }
+.ann.cri .ann-val { color: var(--cri); }
+.ann.neo .ann-val { color: var(--em); text-shadow: 0 0 12px rgba(0,217,126,0.6); }
+
+/* ─── BRUSHSTROKE SEPARATOR ─── */
+.brush-sep {
+  position: absolute; z-index: 28;
+  left: 0; right: 0;
+  pointer-events: none;
+}
+
+/* ─── BOTTOM CARD ─── */
+.bot-card {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  height: 262px; z-index: 22;
+  background: var(--cream);
+  padding: 16px 22px 22px;
+}
+.s-neon .bot-card { background: #0A0A14; border-top: 1px solid rgba(0,217,126,0.12); }
+
+.card-grip {
+  width: 34px; height: 4px; border-radius: 2px;
+  background: rgba(0,0,0,0.12); margin: 0 auto 14px;
+}
+.s-neon .card-grip { background: rgba(255,255,255,0.08); }
+
+.month-row {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 12px; font-size: 11px;
+  color: #8E8E93;
+}
+.month-row strong { color: #1C1C1E; font-weight: 600; }
+.s-neon .month-row { color: rgba(255,255,255,0.3); }
+.s-neon .month-row strong { color: rgba(255,255,255,0.7); }
+
+.metrics { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 7px; margin-bottom: 13px; }
+.m-cell { background: rgba(0,0,0,0.04); border-radius: 10px; padding: 10px 9px; }
+.s-neon .m-cell { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06); }
+.m-lbl { font-size: 8px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: #9E9E9E; margin-bottom: 3px; }
+.m-val { font-family: var(--mono); font-size: 15px; font-weight: 500; color: #1C1C1E; font-variant-numeric: tabular-nums; }
+.s-neon .m-lbl { color: rgba(255,255,255,0.3); }
+.s-neon .m-val { color: rgba(255,255,255,0.85); }
+.m-val.pos  { color: #009B54; }
+.m-val.warn { color: #B34B00; }
+.m-val.neg  { color: #CC0027; }
+.s-neon .m-val.pos  { color: var(--em); text-shadow: 0 0 8px rgba(0,217,126,0.4); }
+.m-delta { font-size: 9px; color: #AEAEB2; margin-top: 1px; }
+.s-neon .m-delta { color: rgba(255,255,255,0.25); }
+
+.actions { display: flex; gap: 7px; }
+.act-btn {
+  flex: 1; padding: 10px 6px; border-radius: 11px; border: none; cursor: pointer;
+  font-family: var(--font); font-size: 10px; font-weight: 600; letter-spacing: 0.2px;
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  transition: transform 0.1s;
+}
+.act-btn:active { transform: scale(0.96); }
+.act-icon { font-size: 14px; }
+.s-serein  .act-main { background: #003D22; color: #fff; }
+.s-tension .act-main { background: #3D1500; color: #fff; }
+.s-alerte  .act-main { background: #3D0010; color: #fff; }
+.s-neon    .act-main {
+  background: rgba(0,217,126,0.12); color: var(--em);
+  border: 1px solid rgba(0,217,126,0.3);
+  box-shadow: 0 0 12px rgba(0,217,126,0.1);
+}
+.act-sec {
+  background: rgba(0,0,0,0.05); color: #3C3C43;
+}
+.s-neon .act-sec { background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.5); border: 1px solid rgba(255,255,255,0.07); }
+
+/* ─── DESKTOP ─── */
+.desktop {
+  width: 820px; height: 520px; border-radius: 14px; overflow: hidden; position: relative;
+  box-shadow: 0 50px 100px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.07);
+  display: flex;
+}
+.dt-canvas { position: absolute; inset: 0; }
+.dt-left {
+  width: 300px; flex-shrink: 0; position: relative; z-index: 10;
+  display: flex; flex-direction: column; justify-content: flex-end;
+  padding: 44px 40px;
+}
+.dt-masthead {
+  font-family: var(--serif); font-style: italic; font-size: 12px;
+  color: rgba(255,255,255,0.35); margin-bottom: 28px; letter-spacing: 0.3px;
+}
+.dt-num {
+  font-family: var(--serif); font-style: italic;
+  font-size: 108px; line-height: 0.86; letter-spacing: -5px; color: #fff;
+}
+.dt-num sup { font-size: 40px; vertical-align: super; letter-spacing: 0; }
+.dt-unit { font-family: var(--serif); font-style: italic; font-size: 32px; color: rgba(255,255,255,0.35); margin-left: 4px; }
+.dt-lbl { margin-top: 10px; font-size: 11px; color: rgba(255,255,255,0.4); }
+.dt-sig {
+  display: inline-flex; align-items: center; gap: 7px; margin-top: 18px;
+  padding: 6px 13px; border-radius: 20px; width: fit-content;
+  background: rgba(0,217,126,0.12); border: 1px solid rgba(0,217,126,0.3);
+}
+.dt-sig-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--em); box-shadow: 0 0 10px var(--em); }
+.dt-sig-txt { font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.75); }
+.dt-right {
+  flex: 1; position: relative; z-index: 10;
+  background: rgba(0,0,0,0.45); backdrop-filter: blur(24px);
+  border-left: 1px solid rgba(255,255,255,0.07);
+  padding: 28px 26px 24px; display: flex; flex-direction: column; gap: 14px;
+}
+.dt-sec { font-size: 8px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: rgba(255,255,255,0.25); margin-bottom: 8px; }
+.dt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+.dt-m { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.07); border-radius: 10px; padding: 12px 14px; }
+.dt-m-lbl { font-size: 8px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: rgba(255,255,255,0.3); margin-bottom: 4px; }
+.dt-m-val { font-family: var(--mono); font-size: 21px; font-weight: 500; color: #fff; font-variant-numeric: tabular-nums; }
+.dt-m-val.em { color: var(--em); }
+.dt-m-sub { font-size: 9px; color: rgba(255,255,255,0.28); margin-top: 2px; }
+.dt-bars { display: flex; align-items: flex-end; gap: 5px; height: 72px; flex: 1; }
+.dt-bar { flex: 1; border-radius: 3px 3px 0 0; background: rgba(255,255,255,0.08); position: relative; }
+.dt-bar.on { background: rgba(0,217,126,0.35); }
+.dt-bar-lbl { position: absolute; bottom: -14px; left: 50%; transform: translateX(-50%); font-size: 7px; color: rgba(255,255,255,0.25); white-space: nowrap; }
+.dt-acts { display: flex; gap: 7px; margin-top: auto; }
+.dt-act {
+  flex: 1; padding: 9px 10px; border-radius: 9px; border: none; cursor: pointer;
+  font-family: var(--font); font-size: 11px; font-weight: 600; letter-spacing: 0.2px;
+}
+.dt-act.p { background: var(--em); color: #002010; }
+.dt-act.s { background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.6); border: 1px solid rgba(255,255,255,0.09); }
+
+/* ─── PALETTE ─── */
+.pal-wrap { max-width: 860px; margin: 0 auto; padding: 44px 28px 80px; }
+.pal-title { font-family: var(--serif); font-style: italic; font-size: 20px; color: #F2F2F7; margin-bottom: 20px; }
+.swatches { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 28px; }
+.sw { width: 76px; height: 76px; border-radius: 14px; padding: 8px; display: flex; flex-direction: column; justify-content: flex-end; box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
+.sw-n { font-size: 8px; font-weight: 700; }
+.sw-h { font-family: var(--mono); font-size: 8px; opacity: 0.65; }
+.type-rows { margin-top: 28px; display: flex; flex-direction: column; gap: 18px; }
+.t-lbl { font-size: 8px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: rgba(242,242,247,0.28); margin-bottom: 3px; }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <span class="nav-logo">famfin</span>
+  <button class="nav-btn active" onclick="show('mobile')">Mobile</button>
+  <button class="nav-btn" onclick="show('neon')">Neon dark</button>
+  <button class="nav-btn" onclick="show('desktop')">Desktop</button>
+  <button class="nav-btn" onclick="show('palette')">Palette</button>
+</nav>
+
+<!-- ════════════════════════════════════════════════ -->
+<!-- MOBILE — 3 ÉTATS                                -->
+<!-- ════════════════════════════════════════════════ -->
+<section id="mobile" class="section active">
+  <div class="intro">
+    <div class="badge">Toile Déclarative v4 — Peint</div>
+    <h1>Le fond EST la donnée.<br>La peinture EST l'interface.</h1>
+    <p>Coups de pinceau SVG expressifs. Texture grain sur le canvas. Bord de carte brushstroke. Chiffre à 100px.</p>
+  </div>
+
+  <div class="grid">
+
+    <!-- ── SEREIN ── -->
+    <div class="col">
+      <div class="col-label">Serein</div>
+      <div class="phone">
+        <div class="canvas s-serein">
+
+          <!-- PAINT LAYER with SVG brushstrokes -->
+          <div class="paint-layer">
+            <svg viewBox="0 0 310 670" xmlns="http://www.w3.org/2000/svg"
+                 style="position:absolute;inset:0;width:100%;height:100%;">
+              <!-- large diagonal sweep — top left to center -->
+              <path d="M -40 80 C 40 60, 130 90, 200 160 C 250 210, 280 270, 260 320 C 240 370, 180 360, 140 320 C 100 280, 80 220, 60 180 C 40 140, -20 120, -40 80Z"
+                    fill="#00D97E" opacity="0.28"/>
+              <!-- secondary sweep — right side -->
+              <path d="M 200 -20 C 260 20, 350 80, 360 160 C 370 240, 310 280, 280 240 C 250 200, 260 140, 230 100 C 200 60, 180 20, 200 -20Z"
+                    fill="#00FF9F" opacity="0.18"/>
+              <!-- bottom glow blob -->
+              <path d="M 0 450 C 60 420, 160 410, 220 440 C 280 470, 330 530, 310 580 C 290 630, 200 660, 120 650 C 40 640, -20 600, 0 550 C 10 520, 0 480, 0 450Z"
+                    fill="#005C2E" opacity="0.55"/>
+              <!-- small accent splat -->
+              <ellipse cx="240" cy="350" rx="55" ry="38" fill="#00E87A" opacity="0.15" transform="rotate(-25 240 350)"/>
+              <!-- paint drip -->
+              <path d="M 80 260 Q 78 300 82 330 Q 84 345 80 360 Q 76 375 79 390"
+                    stroke="#00D97E" stroke-width="4" fill="none" opacity="0.25" stroke-linecap="round"/>
+              <!-- vignette bottom -->
+              <radialGradient id="vgS" cx="50%" cy="100%" r="70%">
+                <stop offset="0%" stop-color="#000" stop-opacity="0.6"/>
+                <stop offset="100%" stop-color="#000" stop-opacity="0"/>
+              </radialGradient>
+              <rect width="310" height="670" fill="url(#vgS)"/>
+            </svg>
+          </div>
+
+          <div class="status-bar"><span>9:41</span><span>●●● 100%</span></div>
+
+          <div class="signal">
+            <div class="sig-dot"></div>
+            <span class="sig-text">Serein</span>
+          </div>
+
+          <div class="hero-zone">
+            <div class="eyebrow">Capacité disponible</div>
+            <div class="hero-num"><sup>+</sup>640<span class="hero-unit">€</span></div>
+            <div class="hero-caption">jusqu'au 30 avril · mois courant</div>
+          </div>
+
+          <!-- floating annotation -->
+          <div class="ann em" style="bottom:274px; left:18px;">
+            <div class="ann-lbl">Épargne du mois</div>
+            <div class="ann-val">+320 €</div>
+            <div class="ann-sub">objectif dépassé</div>
+          </div>
+
+          <!-- Brushstroke separator SVG -->
+          <div class="brush-sep" style="bottom:258px;">
+            <svg viewBox="0 0 310 18" xmlns="http://www.w3.org/2000/svg" style="width:100%;display:block;">
+              <path d="M 0 14 C 30 6, 80 16, 140 10 C 200 4, 260 14, 310 8 L 310 18 L 0 18Z"
+                    fill="#F5EFE4"/>
+              <path d="M -5 10 C 25 4, 70 12, 130 7 C 190 2, 250 11, 315 5"
+                    stroke="rgba(0,0,0,0.04)" stroke-width="2" fill="none"/>
+            </svg>
+          </div>
+
+          <div class="bot-card">
+            <div class="card-grip"></div>
+            <div class="month-row">Avril 2026 <strong>Sophie &amp; Julien</strong></div>
+            <div class="metrics">
+              <div class="m-cell">
+                <div class="m-lbl">Revenus</div>
+                <div class="m-val pos">4 250 €</div>
+                <div class="m-delta">+3%</div>
+              </div>
+              <div class="m-cell">
+                <div class="m-lbl">Dépenses</div>
+                <div class="m-val">3 610 €</div>
+                <div class="m-delta">stable</div>
+              </div>
+              <div class="m-cell">
+                <div class="m-lbl">Solde</div>
+                <div class="m-val pos">+640 €</div>
+                <div class="m-delta">projeté</div>
+              </div>
+            </div>
+            <div class="actions s-serein">
+              <button class="act-btn act-main"><span class="act-icon">+</span>Ajouter</button>
+              <button class="act-btn act-sec"><span class="act-icon">≡</span>Transactions</button>
+              <button class="act-btn act-sec"><span class="act-icon">◎</span>Objectifs</button>
+            </div>
+          </div>
+
+        </div><!-- /canvas -->
+      </div>
+    </div>
+
+    <!-- ── TENSION ── -->
+    <div class="col">
+      <div class="col-label">Tension</div>
+      <div class="phone">
+        <div class="canvas s-tension">
+          <div class="paint-layer">
+            <svg viewBox="0 0 310 670" xmlns="http://www.w3.org/2000/svg"
+                 style="position:absolute;inset:0;width:100%;height:100%;">
+              <path d="M -20 60 C 50 40, 160 80, 220 150 C 270 205, 300 270, 275 325 C 250 380, 180 375, 140 335 C 100 295, 90 230, 65 185 C 40 140, -10 110, -20 60Z"
+                    fill="#FF8500" opacity="0.32"/>
+              <path d="M 195 -30 C 265 15, 360 90, 355 175 C 350 255, 285 290, 255 248 C 225 206, 245 145, 215 105 C 185 65, 175 20, 195 -30Z"
+                    fill="#FFB800" opacity="0.2"/>
+              <path d="M 10 430 C 70 400, 180 395, 240 428 C 300 460, 340 520, 318 572 C 296 624, 205 655, 125 644 C 45 633, -10 595, 10 545 C 22 515, 10 462, 10 430Z"
+                    fill="#7A2800" opacity="0.65"/>
+              <ellipse cx="250" cy="340" rx="50" ry="36" fill="#FF9500" opacity="0.14" transform="rotate(-20 250 340)"/>
+              <!-- drip orange -->
+              <path d="M 75 250 Q 72 295 77 325 Q 80 342 75 358"
+                    stroke="#FF8500" stroke-width="5" fill="none" opacity="0.22" stroke-linecap="round"/>
+              <radialGradient id="vgT" cx="50%" cy="100%" r="70%">
+                <stop offset="0%" stop-color="#000" stop-opacity="0.65"/>
+                <stop offset="100%" stop-color="#000" stop-opacity="0"/>
+              </radialGradient>
+              <rect width="310" height="670" fill="url(#vgT)"/>
+            </svg>
+          </div>
+
+          <div class="status-bar"><span>9:41</span><span>●●● 100%</span></div>
+          <div class="signal"><div class="sig-dot"></div><span class="sig-text">Attention</span></div>
+
+          <div class="hero-zone">
+            <div class="eyebrow">Capacité disponible</div>
+            <div class="hero-num">90<span class="hero-unit">€</span></div>
+            <div class="hero-caption">jusqu'au 30 avril · 12 jours restants</div>
+          </div>
+
+          <div class="ann amb" style="bottom:274px; left:18px;">
+            <div class="ann-lbl">Abonnements</div>
+            <div class="ann-val">+45 €</div>
+            <div class="ann-sub">vs mois précédent</div>
+          </div>
+
+          <div class="brush-sep" style="bottom:258px;">
+            <svg viewBox="0 0 310 18" xmlns="http://www.w3.org/2000/svg" style="width:100%;display:block;">
+              <path d="M 0 12 C 45 5, 95 15, 155 9 C 215 3, 265 13, 310 7 L 310 18 L 0 18Z" fill="#F5EFE4"/>
+            </svg>
+          </div>
+
+          <div class="bot-card">
+            <div class="card-grip"></div>
+            <div class="month-row">Avril 2026 <strong>Sophie &amp; Julien</strong></div>
+            <div class="metrics">
+              <div class="m-cell">
+                <div class="m-lbl">Revenus</div>
+                <div class="m-val pos">4 250 €</div>
+                <div class="m-delta">stable</div>
+              </div>
+              <div class="m-cell">
+                <div class="m-lbl">Dépenses</div>
+                <div class="m-val warn">4 160 €</div>
+                <div class="m-delta">+15%</div>
+              </div>
+              <div class="m-cell">
+                <div class="m-lbl">Solde</div>
+                <div class="m-val warn">90 €</div>
+                <div class="m-delta">projection</div>
+              </div>
+            </div>
+            <div class="actions s-tension">
+              <button class="act-btn act-main"><span class="act-icon">🔍</span>Analyser</button>
+              <button class="act-btn act-sec"><span class="act-icon">≡</span>Transactions</button>
+              <button class="act-btn act-sec"><span class="act-icon">◎</span>Objectifs</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── ALERTE ── -->
+    <div class="col">
+      <div class="col-label">Alerte</div>
+      <div class="phone">
+        <div class="canvas s-alerte">
+          <div class="paint-layer">
+            <svg viewBox="0 0 310 670" xmlns="http://www.w3.org/2000/svg"
+                 style="position:absolute;inset:0;width:100%;height:100%;">
+              <path d="M -30 70 C 45 45, 150 90, 215 165 C 265 220, 295 285, 268 338 C 241 391, 172 384, 132 342 C 92 300, 86 234, 60 187 C 34 140, -5 105, -30 70Z"
+                    fill="#FF3358" opacity="0.35"/>
+              <path d="M 200 -25 C 268 22, 358 100, 350 185 C 342 265, 274 296, 244 252 C 214 208, 238 148, 208 106 C 178 64, 172 18, 200 -25Z"
+                    fill="#FF6060" opacity="0.18"/>
+              <path d="M 5 445 C 65 412, 175 400, 235 434 C 295 468, 332 528, 310 580 C 288 632, 198 658, 118 646 C 38 634, -8 594, 5 542 C 16 510, 5 478, 5 445Z"
+                    fill="#5C000E" opacity="0.7"/>
+              <!-- lightning crack -->
+              <path d="M 170 120 L 145 190 L 165 190 L 135 270"
+                    stroke="#FF3358" stroke-width="2.5" fill="none" opacity="0.3" stroke-linecap="round" stroke-linejoin="round"/>
+              <radialGradient id="vgA" cx="50%" cy="100%" r="70%">
+                <stop offset="0%" stop-color="#000" stop-opacity="0.7"/>
+                <stop offset="100%" stop-color="#000" stop-opacity="0"/>
+              </radialGradient>
+              <rect width="310" height="670" fill="url(#vgA)"/>
+            </svg>
+          </div>
+
+          <div class="status-bar"><span>9:41</span><span>●●● 100%</span></div>
+          <div class="signal"><div class="sig-dot"></div><span class="sig-text">Dépassement prévu</span></div>
+
+          <div class="hero-zone">
+            <div class="eyebrow">Capacité disponible</div>
+            <div class="hero-num"><sup>−</sup>280<span class="hero-unit">€</span></div>
+            <div class="hero-caption">dépassement projeté · 12 jours restants</div>
+          </div>
+
+          <div class="ann cri" style="bottom:274px; left:18px;">
+            <div class="ann-lbl">Vacances août</div>
+            <div class="ann-val">−480 €</div>
+            <div class="ann-sub">dépense ponctuelle</div>
+          </div>
+
+          <div class="brush-sep" style="bottom:258px;">
+            <svg viewBox="0 0 310 18" xmlns="http://www.w3.org/2000/svg" style="width:100%;display:block;">
+              <path d="M 0 10 C 40 4, 90 14, 150 8 C 210 2, 268 12, 310 6 L 310 18 L 0 18Z" fill="#F5EFE4"/>
+            </svg>
+          </div>
+
+          <div class="bot-card">
+            <div class="card-grip"></div>
+            <div class="month-row">Avril 2026 <strong>Sophie &amp; Julien</strong></div>
+            <div class="metrics">
+              <div class="m-cell">
+                <div class="m-lbl">Revenus</div>
+                <div class="m-val pos">4 250 €</div>
+                <div class="m-delta">stable</div>
+              </div>
+              <div class="m-cell">
+                <div class="m-lbl">Dépenses</div>
+                <div class="m-val neg">4 530 €</div>
+                <div class="m-delta">+25%</div>
+              </div>
+              <div class="m-cell">
+                <div class="m-lbl">Solde</div>
+                <div class="m-val neg">−280 €</div>
+                <div class="m-delta">projection</div>
+              </div>
+            </div>
+            <div class="actions s-alerte">
+              <button class="act-btn act-main"><span class="act-icon">⚡</span>Comprendre</button>
+              <button class="act-btn act-sec"><span class="act-icon">≡</span>Transactions</button>
+              <button class="act-btn act-sec"><span class="act-icon">◎</span>Objectifs</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════ -->
+<!-- NEON DARK — mode IA / nuit                      -->
+<!-- ════════════════════════════════════════════════ -->
+<section id="neon" class="section">
+  <div class="intro">
+    <div class="badge" style="background:rgba(0,217,126,0.08);border-color:rgba(0,217,126,0.2);">Mode Nuit — Tableau de bord IA</div>
+    <h1>Noir absolu.<br>Pigments lumineux.</h1>
+    <p>Inspiré de l'esthétique visualisation IA du dossier HELO. Fond noir profond, peinture neon qui rayonne, chiffres qui luisent.</p>
+  </div>
+
+  <div class="grid">
+    <div class="col">
+      <div class="col-label">Dashboard neon — état serein</div>
+      <div class="phone">
+        <div class="canvas s-neon">
+          <div class="paint-layer">
+            <svg viewBox="0 0 310 670" xmlns="http://www.w3.org/2000/svg"
+                 style="position:absolute;inset:0;width:100%;height:100%;">
+              <!-- neon brushstroke — pure light paint -->
+              <path d="M -50 100 C 30 70, 140 110, 200 190 C 250 255, 270 320, 240 370 C 210 420, 150 405, 110 358 C 70 311, 75 245, 50 198 C 25 151, -10 130, -50 100Z"
+                    fill="#00D97E" opacity="0.12"/>
+              <!-- glow version of same -->
+              <path d="M -20 120 C 50 95, 145 128, 196 196 C 240 254, 256 308, 232 350 C 208 392, 155 382, 118 342 C 81 302, 85 243, 64 200 C 43 157, 10 142, -20 120Z"
+                    fill="#00FF9F" opacity="0.07"/>
+              <!-- right accent -->
+              <path d="M 260 0 C 320 40, 360 120, 340 190 C 320 255, 265 268, 248 228 C 231 188, 258 120, 238 78 C 218 36, 210 0, 260 0Z"
+                    fill="#00D97E" opacity="0.09"/>
+              <!-- bottom nebula -->
+              <radialGradient id="nebula" cx="40%" cy="85%" r="55%">
+                <stop offset="0%" stop-color="#00D97E" stop-opacity="0.15"/>
+                <stop offset="60%" stop-color="#004422" stop-opacity="0.1"/>
+                <stop offset="100%" stop-color="#000" stop-opacity="0"/>
+              </radialGradient>
+              <rect width="310" height="670" fill="url(#nebula)"/>
+              <!-- star dots -->
+              <circle cx="55"  cy="50"  r="1" fill="#00D97E" opacity="0.6"/>
+              <circle cx="220" cy="80"  r="1.5" fill="#00D97E" opacity="0.4"/>
+              <circle cx="280" cy="200" r="1" fill="#00FF9F" opacity="0.5"/>
+              <circle cx="40"  cy="320" r="1.5" fill="#00D97E" opacity="0.3"/>
+              <circle cx="290" cy="380" r="1" fill="#00D97E" opacity="0.4"/>
+            </svg>
+          </div>
+
+          <div class="status-bar"><span>9:41</span><span>●●● 100%</span></div>
+          <div class="signal"><div class="sig-dot"></div><span class="sig-text">Serein</span></div>
+
+          <div class="hero-zone">
+            <div class="eyebrow" style="color:rgba(0,217,126,0.55);">Capacité disponible</div>
+            <div class="hero-num" style="text-shadow:0 0 40px rgba(0,217,126,0.35), 0 0 80px rgba(0,217,126,0.15);">
+              <sup>+</sup>640<span class="hero-unit" style="color:rgba(0,217,126,0.4);">€</span>
+            </div>
+            <div class="hero-caption">jusqu'au 30 avril · mois courant</div>
+          </div>
+
+          <div class="ann neo" style="bottom:274px; left:18px; border-color:rgba(0,217,126,0.2); background:rgba(0,10,5,0.8);">
+            <div class="ann-lbl">Épargne</div>
+            <div class="ann-val">+320 €</div>
+            <div class="ann-sub">objectif dépassé</div>
+          </div>
+
+          <div class="brush-sep" style="bottom:258px;">
+            <svg viewBox="0 0 310 18" xmlns="http://www.w3.org/2000/svg" style="width:100%;display:block;">
+              <path d="M 0 13 C 35 6, 85 16, 145 10 C 205 4, 260 14, 310 8 L 310 18 L 0 18Z" fill="#0A0A14"/>
+              <path d="M -5 9 C 30 3, 80 12, 140 6 C 200 0, 255 10, 315 4"
+                    stroke="rgba(0,217,126,0.08)" stroke-width="2" fill="none"/>
+            </svg>
+          </div>
+
+          <div class="bot-card s-neon">
+            <div class="card-grip"></div>
+            <div class="month-row s-neon">Avril 2026 <strong style="color:rgba(255,255,255,0.6)">Sophie &amp; Julien</strong></div>
+            <div class="metrics">
+              <div class="m-cell s-neon">
+                <div class="m-lbl s-neon" style="color:rgba(255,255,255,0.3)">Revenus</div>
+                <div class="m-val s-neon" style="color:var(--em);text-shadow:0 0 10px rgba(0,217,126,0.4)">4 250 €</div>
+                <div class="m-delta">+3%</div>
+              </div>
+              <div class="m-cell s-neon">
+                <div class="m-lbl s-neon" style="color:rgba(255,255,255,0.3)">Dépenses</div>
+                <div class="m-val s-neon" style="color:rgba(255,255,255,0.75)">3 610 €</div>
+                <div class="m-delta">stable</div>
+              </div>
+              <div class="m-cell s-neon">
+                <div class="m-lbl s-neon" style="color:rgba(255,255,255,0.3)">Solde</div>
+                <div class="m-val s-neon" style="color:var(--em);text-shadow:0 0 10px rgba(0,217,126,0.4)">+640 €</div>
+                <div class="m-delta">projeté</div>
+              </div>
+            </div>
+            <div class="actions s-neon">
+              <button class="act-btn act-main s-neon"><span class="act-icon">+</span>Ajouter</button>
+              <button class="act-btn act-sec s-neon"><span class="act-icon">≡</span>Transactions</button>
+              <button class="act-btn act-sec s-neon"><span class="act-icon">◎</span>Objectifs</button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- neon tension -->
+    <div class="col">
+      <div class="col-label">Neon — tension ambre</div>
+      <div class="phone">
+        <div class="canvas s-neon">
+          <div class="paint-layer">
+            <svg viewBox="0 0 310 670" xmlns="http://www.w3.org/2000/svg"
+                 style="position:absolute;inset:0;width:100%;height:100%;">
+              <path d="M -40 90 C 40 62, 148 105, 210 182 C 262 245, 282 312, 252 363 C 222 414, 158 402, 118 356 C 78 310, 82 244, 56 196 C 30 148, -8 120, -40 90Z"
+                    fill="#FF8500" opacity="0.14"/>
+              <path d="M 255 -10 C 318 35, 358 115, 342 188 C 326 258, 262 272, 240 230 C 218 188, 244 126, 216 84 C 188 42, 196 8, 255 -10Z"
+                    fill="#FFB800" opacity="0.1"/>
+              <radialGradient id="nebAmb" cx="42%" cy="82%" r="55%">
+                <stop offset="0%" stop-color="#FF8500" stop-opacity="0.12"/>
+                <stop offset="100%" stop-color="#000" stop-opacity="0"/>
+              </radialGradient>
+              <rect width="310" height="670" fill="url(#nebAmb)"/>
+              <circle cx="60"  cy="45"  r="1" fill="#FF8500" opacity="0.5"/>
+              <circle cx="225" cy="90"  r="1.5" fill="#FFB800" opacity="0.4"/>
+              <circle cx="285" cy="210" r="1" fill="#FF8500" opacity="0.4"/>
+            </svg>
+          </div>
+
+          <div class="status-bar"><span>9:41</span><span>●●● 100%</span></div>
+          <div class="signal" style="background:rgba(255,133,0,0.1);border-color:rgba(255,133,0,0.4);">
+            <div class="sig-dot" style="background:var(--amb);box-shadow:0 0 12px var(--amb),0 0 24px rgba(255,133,0,0.3);"></div>
+            <span class="sig-text">Attention</span>
+          </div>
+
+          <div class="hero-zone">
+            <div class="eyebrow" style="color:rgba(255,133,0,0.5);">Capacité disponible</div>
+            <div class="hero-num" style="text-shadow:0 0 40px rgba(255,133,0,0.3),0 0 80px rgba(255,133,0,0.12);">
+              90<span class="hero-unit" style="color:rgba(255,133,0,0.38);">€</span>
+            </div>
+            <div class="hero-caption">12 jours restants</div>
+          </div>
+
+          <div class="ann" style="bottom:274px;left:18px;border-color:rgba(255,133,0,0.2);background:rgba(10,5,0,0.8);">
+            <div class="ann-lbl">Abonnements</div>
+            <div class="ann-val" style="color:var(--amb);text-shadow:0 0 10px rgba(255,133,0,0.5)">+45 €</div>
+            <div class="ann-sub">vs mois précédent</div>
+          </div>
+
+          <div class="brush-sep" style="bottom:258px;">
+            <svg viewBox="0 0 310 18" xmlns="http://www.w3.org/2000/svg" style="width:100%;display:block;">
+              <path d="M 0 13 C 35 6, 85 16, 145 10 C 205 4, 260 14, 310 8 L 310 18 L 0 18Z" fill="#0A0A14"/>
+              <path d="M -5 9 C 30 3, 80 12, 140 6 C 200 0, 255 10, 315 4"
+                    stroke="rgba(255,133,0,0.06)" stroke-width="2" fill="none"/>
+            </svg>
+          </div>
+
+          <div class="bot-card s-neon">
+            <div class="card-grip"></div>
+            <div class="month-row">Avril 2026 <strong style="color:rgba(255,255,255,0.6)">Sophie &amp; Julien</strong></div>
+            <div class="metrics">
+              <div class="m-cell s-neon"><div class="m-lbl" style="color:rgba(255,255,255,0.3)">Revenus</div><div class="m-val" style="color:var(--em);text-shadow:0 0 8px rgba(0,217,126,0.3)">4 250 €</div><div class="m-delta">stable</div></div>
+              <div class="m-cell s-neon"><div class="m-lbl" style="color:rgba(255,255,255,0.3)">Dépenses</div><div class="m-val" style="color:rgba(255,133,0,0.9);text-shadow:0 0 8px rgba(255,133,0,0.3)">4 160 €</div><div class="m-delta">+15%</div></div>
+              <div class="m-cell s-neon"><div class="m-lbl" style="color:rgba(255,255,255,0.3)">Solde</div><div class="m-val" style="color:rgba(255,133,0,0.9)">90 €</div><div class="m-delta">projeté</div></div>
+            </div>
+            <div class="actions s-neon">
+              <button class="act-btn" style="background:rgba(255,133,0,0.12);color:var(--amb);border:1px solid rgba(255,133,0,0.28);flex:1;padding:10px 6px;border-radius:11px;font-family:var(--font);font-size:10px;font-weight:600;display:flex;flex-direction:column;align-items:center;gap:2px;"><span class="act-icon">🔍</span>Analyser</button>
+              <button class="act-btn act-sec s-neon"><span class="act-icon">≡</span>Transactions</button>
+              <button class="act-btn act-sec s-neon"><span class="act-icon">◎</span>Objectifs</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════ -->
+<!-- DESKTOP                                          -->
+<!-- ════════════════════════════════════════════════ -->
+<section id="desktop" class="section">
+  <div class="intro">
+    <div class="badge">Desktop — Vue rituel</div>
+    <h1>Même ADN peint,<br>espace pour respirer.</h1>
+    <p>La peinture couvre tout le panneau gauche. Le panneau droit est une vitre sur les données.</p>
+  </div>
+  <div class="grid">
+    <div class="col">
+      <div class="desktop">
+        <div class="dt-canvas">
+          <svg viewBox="0 0 820 520" xmlns="http://www.w3.org/2000/svg"
+               style="position:absolute;inset:0;width:100%;height:100%;">
+            <rect width="820" height="520" fill="#001F12"/>
+            <path d="M -80 100 C 50 50, 200 100, 280 200 C 340 280, 360 380, 310 440 C 260 500, 160 490, 100 420 C 40 350, 60 250, 30 180 C 0 110, -60 130, -80 100Z"
+                  fill="#00D97E" opacity="0.22"/>
+            <path d="M 100 -30 C 200 20, 340 80, 330 180 C 320 270, 230 300, 195 250 C 160 200, 200 120, 165 70 C 130 20, 120 -10, 100 -30Z"
+                  fill="#00FF9F" opacity="0.14"/>
+            <path d="M 0 380 C 80 340, 220 330, 290 368 C 360 406, 400 470, 370 512 C 340 554, 230 570, 140 556 C 50 542, -10 500, 0 456 C 8 428, 0 408, 0 380Z"
+                  fill="#004422" opacity="0.7"/>
+            <radialGradient id="dtV" cx="50%" cy="100%" r="60%">
+              <stop offset="0%" stop-color="#000" stop-opacity="0.5"/>
+              <stop offset="100%" stop-color="#000" stop-opacity="0"/>
+            </radialGradient>
+            <rect width="820" height="520" fill="url(#dtV)"/>
+          </svg>
+        </div>
+
+        <div class="dt-left">
+          <div class="dt-masthead">famfin · avril 2026</div>
+          <div class="dt-num"><sup>+</sup>640<span class="dt-unit">€</span></div>
+          <div class="dt-lbl">capacité d'absorption disponible</div>
+          <div class="dt-sig">
+            <div class="dt-sig-dot"></div>
+            <span class="dt-sig-txt">Trajectoire sereine</span>
+          </div>
+        </div>
+
+        <div class="dt-right">
+          <div>
+            <div class="dt-sec">Vue d'ensemble</div>
+            <div class="dt-grid">
+              <div class="dt-m"><div class="dt-m-lbl">Revenus</div><div class="dt-m-val em">4 250 €</div><div class="dt-m-sub">+3% vs mars</div></div>
+              <div class="dt-m"><div class="dt-m-lbl">Dépenses</div><div class="dt-m-val">3 610 €</div><div class="dt-m-sub">dont 380 € ponctuels</div></div>
+              <div class="dt-m"><div class="dt-m-lbl">Épargne projetée</div><div class="dt-m-val em">+320 €</div><div class="dt-m-sub">objectif 300 €</div></div>
+              <div class="dt-m"><div class="dt-m-lbl">Abonnements</div><div class="dt-m-val">148 €</div><div class="dt-m-sub">7 actifs</div></div>
+            </div>
+          </div>
+          <div>
+            <div class="dt-sec">6 derniers mois</div>
+            <div class="dt-bars">
+              <div class="dt-bar" style="height:52%"><span class="dt-bar-lbl">nov</span></div>
+              <div class="dt-bar" style="height:40%"><span class="dt-bar-lbl">déc</span></div>
+              <div class="dt-bar" style="height:65%"><span class="dt-bar-lbl">jan</span></div>
+              <div class="dt-bar" style="height:70%"><span class="dt-bar-lbl">fév</span></div>
+              <div class="dt-bar" style="height:58%"><span class="dt-bar-lbl">mar</span></div>
+              <div class="dt-bar on" style="height:86%"><span class="dt-bar-lbl">avr</span></div>
+            </div>
+          </div>
+          <div class="dt-acts">
+            <button class="dt-act p">Importer relevé</button>
+            <button class="dt-act s">Transactions</button>
+            <button class="dt-act s">Objectifs</button>
+            <button class="dt-act s">Configuration</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════ -->
+<!-- PALETTE                                          -->
+<!-- ════════════════════════════════════════════════ -->
+<section id="palette" class="section">
+  <div class="pal-wrap">
+    <div class="pal-title">Palette — Toile Déclarative v4</div>
+    <div class="swatches">
+      <div class="sw" style="background:#00D97E;"><div class="sw-n" style="color:#002010">Emerald</div><div class="sw-h" style="color:#003018">#00D97E</div></div>
+      <div class="sw" style="background:#00A85F;"><div class="sw-n" style="color:#fff">Emerald dk</div><div class="sw-h">#00A85F</div></div>
+      <div class="sw" style="background:#001F12;"><div class="sw-n" style="color:rgba(255,255,255,0.6)">Bg serein</div><div class="sw-h" style="color:rgba(255,255,255,0.35)">#001F12</div></div>
+      <div class="sw" style="background:#FF8500;"><div class="sw-n" style="color:#2D1200">Amber</div><div class="sw-h" style="color:#2D1200">#FF8500</div></div>
+      <div class="sw" style="background:#CC5A00;"><div class="sw-n" style="color:#fff">Amber dk</div><div class="sw-h">#CC5A00</div></div>
+      <div class="sw" style="background:#1F0800;"><div class="sw-n" style="color:rgba(255,255,255,0.5)">Bg tension</div><div class="sw-h" style="color:rgba(255,255,255,0.3)">#1F0800</div></div>
+      <div class="sw" style="background:#FF3358;"><div class="sw-n" style="color:#fff">Crimson</div><div class="sw-h">#FF3358</div></div>
+      <div class="sw" style="background:#1F0008;"><div class="sw-n" style="color:rgba(255,255,255,0.5)">Bg alerte</div><div class="sw-h" style="color:rgba(255,255,255,0.3)">#1F0008</div></div>
+      <div class="sw" style="background:#000005;"><div class="sw-n" style="color:rgba(255,255,255,0.5)">Bg neon</div><div class="sw-h" style="color:rgba(255,255,255,0.3)">#000005</div></div>
+      <div class="sw" style="background:#F5EFE4;box-shadow:0 8px 24px rgba(0,0,0,0.3)"><div class="sw-n" style="color:#1C1C1E">Cream</div><div class="sw-h" style="color:#9E9E9E">#F5EFE4</div></div>
+    </div>
+    <div class="type-rows">
+      <div><div class="t-lbl">Hero — DM Serif Display Italic — 100px</div>
+        <div style="font-family:'DM Serif Display',serif;font-style:italic;font-size:72px;line-height:1;color:#F2F2F7;letter-spacing:-3px">+640 €</div></div>
+      <div><div class="t-lbl">Sous-titre — DM Serif Display Italic</div>
+        <div style="font-family:'DM Serif Display',serif;font-style:italic;font-size:28px;color:rgba(242,242,247,0.55)">Trajectoire sereine</div></div>
+      <div><div class="t-lbl">Corps — DM Sans 400</div>
+        <div style="font-size:14px;color:rgba(242,242,247,0.4);line-height:1.75;max-width:440px">famfin ne ment pas et ne juge pas. Il vous montre où vous en êtes, avec clarté, pour que vous puissiez décider.</div></div>
+      <div><div class="t-lbl">Montants — DM Mono — tabular-nums</div>
+        <div style="font-family:'DM Mono',monospace;font-size:20px;color:#00D97E;font-variant-numeric:tabular-nums;text-shadow:0 0 12px rgba(0,217,126,0.3)">+2 850,00 € · −1 100,00 € · 640 €</div></div>
+    </div>
+  </div>
+</section>
+
+<script>
+function show(id) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  event.target.classList.add('active');
+}
+</script>
+</body>
+</html>

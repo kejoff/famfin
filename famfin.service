@@ -1,0 +1,35 @@
+[Unit]
+Description=famfin - Local Household Financial Planning
+Documentation=man:famfin(1)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=famfin
+Group=famfin
+WorkingDirectory=/opt/famfin
+ExecStart=/opt/famfin/famfin-backend
+Restart=on-failure
+RestartSec=5s
+
+# Security
+PrivateTmp=yes
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/opt/famfin/data
+
+# Environment
+Environment="RUST_LOG=info"
+Environment="DATABASE_PATH=/opt/famfin/data/famfin.db"
+Environment="STATIC_DIR=/opt/famfin/famfin-frontend/dist"
+EnvironmentFile=-/etc/famfin/famfin.env
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=famfin
+
+[Install]
+WantedBy=multi-user.target
